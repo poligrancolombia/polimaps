@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <title>Mapa de Nichos y Estudiantes 2026</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
+
+  <style>
+    /* --- ESTILOS GENERALES --- */
+    html, body, #map { height: 100%; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    
+    /* Buscador (NUEVO) */
+    .pac-card { display: none; } /* Ocultar estilos por defecto innecesarios */
+    #pac-input {
+      background-color: #fff;
+      font-family: 'Roboto', sans-serif;
+      font-size: 15px;
+      font-weight: 300;
+      margin-left: 12px;
+      padding: 0 11px 0 13px;
+      text-overflow: ellipsis;
+      width: 300px;
+      height: 40px;
+      margin-top: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    }
+    #pac-input:focus { border-color: #4d90fe; outline: none; }
+
+    /* Header Flotante */
+    #header {
+      position: absolute; top: 10px; right: 10px;
+      background: white; padding: 10px 15px;
+      border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      text-align: right; z-index: 10;
+      display: flex; flex-direction: column; align-items: flex-end;
+    }
+    #header h1 { margin: 0 0 5px 0; font-size: 16px; color: #333; }
+    #logos img { margin-left: 8px; height: 35px; vertical-align: middle; }
+
+    /* Panel de Control Lateral */
+    #controls {
+      position: absolute; top: 70px; /* Bajamos un poco para dejar espacio al buscador */
+      left: 10px;
+      background: white; padding: 0;
+      border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      max-width: 280px; width: 100%; z-index: 5;
+      max-height: 80vh; overflow-y: auto;
+    }
+
+    /* Acordeones */
+    details { border-bottom: 1px solid #eee; }
+    details:last-child { border-bottom: none; }
+    
+    summary {
+      padding: 12px 15px; cursor: pointer; font-weight: bold; font-size: 14px;
+      color: #2c3e50; list-style: none; display: flex; justify-content: space-between; align-items: center; background-color: #fff;
+    }
+    summary:hover { background-color: #f8f9fa; }
+    summary::after { content: '+'; font-weight: bold; color: #777; }
+    details[open] summary::after { content: '-'; }
+    details[open] summary { border-bottom: 1px solid #eee; }
+
+    .control-content { padding: 15px; background-color: #fff; }
+
+    /* Inputs y Selects */
+    select, input[type="number"], button {
+      width: 100%; margin-bottom: 8px; padding: 8px;
+      border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box;
+    }
+    label { font-size: 12px; color: #555; display: block; margin-bottom: 2px; }
+    
+    button { background-color: #007bff; color: white; border: none; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-top: 5px; }
+    button:hover { background-color: #0056b3; }
+    button.btn-secondary { background-color: #6c757d; }
+    button.btn-secondary:hover { background-color: #545b62; }
+
+    /* Contador */
+    #contador-estudiantes {
+      position: absolute; bottom: 20px; right: 10px;
+      background: white; padding: 15px 20px;
+      border-radius: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      font-size: 16px; font-weight: bold; color: #333;
+      z-index: 10; display: flex; align-items: center; gap: 10px;
+    }
+    #num-estudiantes { color: #007bff; font-size: 20px; }
+
+    /* Choices y Checkboxes */
+    .choices { margin-bottom: 8px; font-size: 13px; }
+    .choices__inner { min-height: 35px; padding: 5px; background-color: #fff; border-radius: 4px; }
+    
+    #filtro_tipo_entidad { max-height: 150px; overflow-y: auto; border: 1px solid #eee; padding: 5px; border-radius: 4px; }
+    .checkbox-item { display: flex; align-items: center; margin-bottom: 4px; }
+    .checkbox-item input { width: auto; margin: 0 8px 0 0; }
+
+    /* --- Toggle Chips (Tipo IES) --- */
+    .toggle-container { display: flex; gap: 10px; margin-bottom: 12px; }
+    .toggle-checkbox { display: none; }
+    .toggle-chip {
+      flex: 1; padding: 8px; text-align: center; background-color: #f1f3f5;
+      border: 1px solid #ddd; border-radius: 20px; cursor: pointer;
+      font-size: 12px; font-weight: 600; color: #6c757d; transition: all 0.2s ease; user-select: none;
+    }
+    .toggle-checkbox:checked + .toggle-chip {
+      background-color: #007bff; color: white; border-color: #007bff;
+      box-shadow: 0 2px 5px rgba(0,123,255,0.3);
+    }
+    .toggle-chip:hover { background-color: #e2e6ea; }
+    .toggle-checkbox:checked + .toggle-chip:hover { background-color: #0069d9; }
+    
+    /* --- Estilos de la Etiqueta (InfoWindow) --- */
+    .gm-style-iw-d { overflow: hidden !important; }
+    .iw-container { 
+      font-family: 'Segoe UI', sans-serif; 
+      max-width: 260px;
+      line-height: 1.4;
+    }
+    .iw-header {
+      background-color: #f8f9fa;
+      padding: 8px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      border-left: 4px solid #007bff;
+    }
+    .iw-marca { 
+      font-size: 14px; font-weight: 800; color: #2c3e50; margin: 0; 
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .iw-nombre { 
+      font-size: 13px; font-weight: 600; color: #555; margin: 0; 
+    }
+    .iw-info {
+      font-size: 12px; color: #666; margin-top: 5px;
+    }
+    .iw-icon { margin-right: 4px; }
+
+  </style>
+</head>
+<body>
+
+<input id="pac-input" class="controls" type="text" placeholder="Buscar barrio, ciudad o lugar...">
+
+<div id="header">
+  <h1>Mapa de Nichos y Estudiantes 2026</h1>
+  <div id="logos">
+    <img src="https://i.postimg.cc/pTQ2jfh0/PROMOCIONES-ESPECIALES-ALPHALISS-DALE-CLICK-EN-M-S-INFORMACI-N.png" alt="Logo IC">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/76/Logo_del_Polit%C3%A9cnico_Grancolombiano.svg/1200px-Logo_del_Polit%C3%A9cnico_Grancolombiano.svg.png" alt="Logo Poligran">
+  </div>
+</div>
+
+<div id="contador-estudiantes">
+  <span>🎓 Visibles:</span>
+  <span id="num-estudiantes">0</span>
+</div>
+
+<div id="controls">
+  
+  <details open>
+    <summary>🎓 Filtro Estudiantes</summary>
+    <div class="control-content">
+      <label>Nivel Académico</label>
+      <select id="nivel_academico"><option value="">Todos</option></select>
+      <label>Formación</label>
+      <select id="nivel_formacion"><option value="">Todas</option></select>
+      <label>Sede</label>
+      <select id="sede"><option value="">Todas</option></select>
+      <label>Convenio</label>
+      <select id="convenio"><option value="">Todos</option></select>
+      <label>Departamento</label>
+      <select id="departamento_residencia"><option value="">Todos</option></select>
+      
+      <div style="display: flex; gap: 5px;">
+        <div style="flex:1;">
+          <label>Desde:</label>
+          <select id="desde_año"></select>
+        </div>
+        <div style="flex:1;">
+          <label>Hasta:</label>
+          <select id="hasta_año"></select>
+        </div>
+      </div>
+      <button onclick="aplicarFiltros()">Aplicar Filtros</button>
+    </div>
+  </details>
+
+  <details id="details-entidades">
+    <summary>🏢 Entidades y POIs</summary>
+    <div class="control-content">
+      <p style="font-size:11px; color:#666; margin-top:0;">Selecciona tipos de lugares:</p>
+      <div id="loading-entidades" style="display:none; text-align:center; padding:10px;">Cargando...</div>
+      <div id="filtro_tipo_entidad"></div>
+      <br>
+      <label class="checkbox-item" style="font-weight:bold;">
+        <input type="checkbox" id="toggle_poi" onchange="togglePOI()"> Ver Nombres Google Maps
+      </label>
+      <button class="btn-secondary" onclick="limpiarFiltroEntidades()">Limpiar Selección</button>
+    </div>
+  </details>
+
+  <details id="details-ies">
+    <summary>🏫 Competencia (IES)</summary>
+    <div class="control-content">
+      <div id="loading-ies" style="display:none; text-align:center; padding:10px;">Cargando datos...</div>
+      
+      <label style="margin-bottom:5px;">Filtrar por tipo:</label>
+      <div class="toggle-container">
+        <label>
+          <input type="checkbox" id="check_sede" class="toggle-checkbox" checked onchange="aplicarFiltroIES()">
+          <div class="toggle-chip">🏛️ SEDES</div>
+        </label>
+        <label>
+          <input type="checkbox" id="check_csu" class="toggle-checkbox" checked onchange="aplicarFiltroIES()">
+          <div class="toggle-chip">ℹ️ CSU / Puntos</div>
+        </label>
+      </div>
+
+      <label>Seleccione Instituciones (Vacío = Todas):</label>
+      <select id="filtro_ies" multiple class="form-control"></select>
+      
+      <button class="btn-secondary" onclick="limpiarFiltroIES()">Restablecer</button>
+    </div>
+  </details>
+
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/@googlemaps/markerclusterer/dist/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+
+<script>
+// --- DATOS ESTÁTICOS ---
+const logosIES = {
+  "AREANDINA": "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/Logos/AREANDINA.png",
+  "IBERO": "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/Logos/IBERO.png",
+  "UNAD": "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/Logos/UNAD.png",
+  "UNIMINUTO": "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/Logos/UNIMINUTO.png",
+  "CUN": "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/Logos/CUN.png",
+  "UNIR": "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/Logos/UNIR.png",
+  "LIBERTADORES": "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/Logos/LIBERTADORES.png",
+  "REMINGTON": "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/Logos/REMINGTON.png",
+  "ASTURIAS": "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/Logos/ASTURIAS.png",
+  "SANTO TOMAS": "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/Logos/SANTO%20TOMAS.png",
+  "ECCI": "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/Logos/ECCI.png",
+  "COOPERATIVA": "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/Logos/COOPERATIVA.png",
+  "POLI": "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/Logos/POLI.png",
+  "SENA": "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/Logos/SENA.png"
+};
+
+const iconosEntidad = {
+  "CENTRO COMERCIAL": "https://cdn-icons-png.flaticon.com/64/7806/7806057.png",
+  "COLEGIO": "https://img.icons8.com/color/48/school.png",
+  "CONJUNTO RESIDENCIAL": "https://img.icons8.com/color/48/home.png",
+  "EDIFICIO": "https://img.icons8.com/color/48/building.png",
+  "EMPRESA": "https://img.icons8.com/color/48/company.png",
+  "IETDH": "https://img.icons8.com/color/48/graduation-cap.png",
+  "OTRO": "https://img.icons8.com/ios-filled/40/000000/marker.png",
+  "PARQUE INDUSTRIAL": "https://img.icons8.com/office/40/factory.png",
+  "URBANIZACION": "https://img.icons8.com/color/48/city-block.png"
+};
+
+const iconosIES = {
+  "SEDE": "https://img.icons8.com/color/48/school-building.png",
+  "CSU": "https://img.icons8.com/color/48/visit.png"
+};
+
+const estiloSinPOI = [{ featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }];
+
+// --- VARIABLES GLOBALES ---
+let map, heatmap;
+let datos = [], datosFiltrados = [];
+let capaMarcadoresEntidades = [], markerClusterEntidades = null;
+let marcadoresIES = [], choicesIESInstance = null;
+let entidadesCargadas = false;
+let iesCargadas = false;
+let searchBox = null; // Variable para el buscador
+
+// --- INICIALIZACIÓN ---
+function initMap() {
+  map = new google.maps.Map(document.getElementById("map"), {
+    zoom: 6,
+    center: { lat: 4.6097, lng: -74.0817 },
+    styles: estiloSinPOI,
+    mapTypeControl: false,
+    streetViewControl: false,
+    fullscreenControl: false
+  });
+
+  markerClusterEntidades = new markerClusterer.MarkerClusterer({ map, markers: [] });
+  map.addListener('idle', actualizarContadorEstudiantes);
+
+  // --- CONFIGURACIÓN DEL BUSCADOR (NUEVO) ---
+  initSearchBox();
+
+  cargarEstudiantes();
+  setupLazyLoading();
+}
+
+function initSearchBox() {
+  const input = document.getElementById("pac-input");
+  
+  // Posicionamos el buscador arriba a la izquierda (dentro del mapa)
+  map.controls[google.maps.ControlPosition.TOP_LEFT].push(input);
+
+  searchBox = new google.maps.places.SearchBox(input);
+
+  // Sesgar resultados a donde esté mirando el mapa actualmente
+  map.addListener("bounds_changed", () => {
+    searchBox.setBounds(map.getBounds());
+  });
+
+  // Escuchar cuando el usuario selecciona un lugar
+  searchBox.addListener("places_changed", () => {
+    const places = searchBox.getPlaces();
+
+    if (places.length == 0) return;
+
+    // Para ajustar el zoom al resultado
+    const bounds = new google.maps.LatLngBounds();
+    
+    places.forEach((place) => {
+      if (!place.geometry || !place.geometry.location) {
+        console.log("El lugar no tiene geometría");
+        return;
+      }
+
+      if (place.geometry.viewport) {
+        // Solo para lugares con área (como ciudades o barrios)
+        bounds.union(place.geometry.viewport);
+      } else {
+        // Para puntos exactos
+        bounds.extend(place.geometry.location);
+      }
+    });
+
+    map.fitBounds(bounds);
+  });
+}
+
+function setupLazyLoading() {
+  const detailsEntidades = document.getElementById('details-entidades');
+  detailsEntidades.addEventListener('toggle', (event) => {
+    if (detailsEntidades.open && !entidadesCargadas) cargarEntidades();
+  });
+
+  const detailsIES = document.getElementById('details-ies');
+  detailsIES.addEventListener('toggle', (event) => {
+    if (detailsIES.open && !iesCargadas) cargarIES();
+  });
+}
+
+// --- MÓDULO ESTUDIANTES ---
+function cargarEstudiantes() {
+  fetch("https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/datos_estudiantes.json")
+    .then(r => r.json())
+    .then(json => {
+      datos = json;
+      cargarFiltrosDropdowns();
+      aplicarFiltros();
+    })
+    .catch(e => console.error("Error cargando estudiantes:", e));
+}
+
+function cargarFiltrosDropdowns() {
+  const columnas = ["nivel_academico", "nivel_formacion", "sede", "convenio", "departamento_residencia"];
+  columnas.forEach(col => {
+    const select = document.getElementById(col);
+    if (!select) return;
+    const opciones = [...new Set(datos.map(p => p[col]).filter(Boolean))].sort();
+    opciones.forEach(op => {
+      const o = document.createElement("option");
+      o.value = op; o.textContent = op;
+      select.appendChild(o);
+    });
+  });
+
+  const selectDesde = document.getElementById("desde_año");
+  const selectHasta = document.getElementById("hasta_año");
+  for (let año = 2022; año <= 2026; año++) {
+      selectDesde.add(new Option(año, año));
+      selectHasta.add(new Option(año, año));
+  }
+  selectDesde.value = "2022";
+  selectHasta.value = "2026";
+}
+
+function aplicarFiltros() {
+  const desde = parseInt(document.getElementById("desde_año").value);
+  const hasta = parseInt(document.getElementById("hasta_año").value);
+  const fNivelA = document.getElementById("nivel_academico").value;
+  const fNivelF = document.getElementById("nivel_formacion").value;
+  const fSede = document.getElementById("sede").value;
+  const fConvenio = document.getElementById("convenio").value;
+  const fDepto = document.getElementById("departamento_residencia").value;
+
+  datosFiltrados = datos.filter(p => {
+    const anio = parseInt(p.año);
+    if (anio < desde || anio > hasta) return false;
+    if (fNivelA && p.nivel_academico !== fNivelA) return false;
+    if (fNivelF && p.nivel_formacion !== fNivelF) return false;
+    if (fSede && p.sede !== fSede) return false;
+    if (fConvenio && p.convenio !== fConvenio) return false;
+    if (fDepto && p.departamento_residencia !== fDepto) return false;
+    return true;
+  });
+
+  mostrarHeatmap(datosFiltrados);
+  actualizarContadorEstudiantes();
+}
+
+function mostrarHeatmap(filtrados) {
+  if (heatmap) heatmap.setMap(null);
+  const puntos = filtrados.map(p => ({ location: new google.maps.LatLng(p.lat, p.lng), weight: 1 }));
+  heatmap = new google.maps.visualization.HeatmapLayer({
+    data: puntos, radius: 10, opacity: 0.5, maxIntensity: 5, map: map
+  });
+}
+
+function actualizarContadorEstudiantes() {
+  if (!map || !map.getBounds()) return;
+  const bounds = map.getBounds();
+  const count = datosFiltrados.filter(p => bounds.contains({ lat: parseFloat(p.lat), lng: parseFloat(p.lng) })).length;
+  document.getElementById("num-estudiantes").textContent = count.toLocaleString();
+}
+
+// --- MÓDULO ENTIDADES ---
+function cargarEntidades() {
+  const loading = document.getElementById('loading-entidades');
+  loading.style.display = 'block';
+
+  fetch("https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/datos_entidades.json")
+    .then(r => r.json())
+    .then(entidades => {
+      let infoWindow = new google.maps.InfoWindow();
+      capaMarcadoresEntidades = entidades.map(e => {
+        const iconUrl = iconosEntidad[e.tipo] || iconosEntidad["OTRO"];
+        const marker = new google.maps.Marker({
+          position: { lat: parseFloat(e.lat), lng: parseFloat(e.lng) },
+          title: e.nombre || e.tipo,
+          icon: { url: iconUrl, scaledSize: new google.maps.Size(20, 20) }
+        });
+        marker.tipo = e.tipo;
+        marker.addListener('click', () => {
+          infoWindow.setContent(`<strong>${e.nombre || 'Entidad'}</strong><br><small>${e.tipo}</small><br>${e.direccion || ''}`);
+          infoWindow.open(map, marker);
+        });
+        return marker;
+      });
+      generarCheckboxesEntidades(entidades);
+      entidadesCargadas = true;
+      loading.style.display = 'none';
+    })
+    .catch(e => { loading.textContent = "Error al cargar."; });
+}
+
+function generarCheckboxesEntidades(data) {
+  const tipos = [...new Set(data.map(e => e.tipo))].sort();
+  const contenedor = document.getElementById("filtro_tipo_entidad");
+  contenedor.innerHTML = "";
+  tipos.forEach(tipo => {
+    const div = document.createElement('div');
+    div.className = 'checkbox-item';
+    const input = document.createElement('input'); 
+    input.type = 'checkbox'; input.value = tipo;
+    input.addEventListener('change', actualizarClusterEntidades);
+    div.appendChild(input);
+    div.appendChild(document.createTextNode(tipo));
+    contenedor.appendChild(div);
+  });
+}
+
+function actualizarClusterEntidades() {
+  const checkedTipos = Array.from(document.querySelectorAll('#filtro_tipo_entidad input:checked')).map(e => e.value);
+  markerClusterEntidades.clearMarkers();
+  if (checkedTipos.length > 0) {
+    const visibles = capaMarcadoresEntidades.filter(m => checkedTipos.includes(m.tipo));
+    markerClusterEntidades.addMarkers(visibles);
+  }
+}
+
+function limpiarFiltroEntidades() {
+  document.querySelectorAll('#filtro_tipo_entidad input').forEach(i => i.checked = false);
+  markerClusterEntidades.clearMarkers();
+}
+
+function togglePOI() {
+  const mostrar = document.getElementById("toggle_poi").checked;
+  map.setOptions({ styles: mostrar ? [] : estiloSinPOI });
+}
+
+// --- MÓDULO IES (CON ETIQUETAS INFO WINDOW) ---
+function cargarIES() {
+  const loading = document.getElementById('loading-ies');
+  loading.style.display = 'block';
+
+  fetch("https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/datos_csu.json")
+    .then(r => r.json())
+    .then(data => {
+      
+      const infoWindow = new google.maps.InfoWindow({ maxWidth: 280 });
+
+      marcadoresIES = data.map(e => {
+        const tipoData = e.tipo_csu ? e.tipo_csu.toUpperCase().trim() : "CSU";
+        const logo = logosIES[e.ies_marca];
+        const iconUrl = logo || iconosIES[tipoData] || iconosIES["CSU"];
+        
+        const marker = new google.maps.Marker({
+          position: { lat: parseFloat(e.lat), lng: parseFloat(e.lng) },
+          title: `${e.ies_marca}`,
+          icon: { url: iconUrl, scaledSize: new google.maps.Size(28, 28) },
+          map: null 
+        });
+        
+        marker.ies = e.ies_marca;
+        marker.tipo_csu = tipoData;
+
+        marker.addListener('click', () => {
+          const htmlContent = `
+            <div class="iw-container">
+              <div class="iw-header">
+                <p class="iw-marca">${e.ies_marca}</p>
+              </div>
+              <p class="iw-nombre">${e.nombre || 'Sede principal'}</p>
+              <div class="iw-info">
+                <span class="iw-icon">📍</span> ${e.direccion || 'Dirección no disponible'}
+                <br>
+                <span class="iw-icon">🏢</span> Tipo: <strong>${tipoData}</strong>
+              </div>
+            </div>
+          `;
+          infoWindow.setContent(htmlContent);
+          infoWindow.open(map, marker);
+        });
+        return marker;
+      });
+
+      const marcas = [...new Set(data.map(e => e.ies_marca))].sort();
+      const select = document.getElementById("filtro_ies");
+      select.innerHTML = "";
+      
+      marcas.forEach(marca => {
+        const option = document.createElement("option");
+        option.value = marca; option.textContent = marca;
+        select.appendChild(option);
+      });
+
+      if (!choicesIESInstance) {
+        choicesIESInstance = new Choices(select, {
+          removeItemButton: true,
+          placeholderValue: "Buscar IES...",
+          searchPlaceholderValue: "Escribe para buscar",
+          itemSelectText: ''
+        });
+        select.addEventListener('change', aplicarFiltroIES);
+      } else {
+        choicesIESInstance.setChoices(
+            marcas.map(m => ({ value: m, label: m, selected: false })),
+            'value', 'label', true
+        );
+      }
+
+      iesCargadas = true;
+      loading.style.display = 'none';
+      aplicarFiltroIES();
+    })
+    .catch(e => { console.error("Error IES", e); loading.textContent = "Error al cargar."; });
+}
+
+function aplicarFiltroIES() {
+  const select = document.getElementById("filtro_ies");
+  const seleccionadas = Array.from(select.selectedOptions).map(o => o.value);
+  
+  const mostrarSedes = document.getElementById("check_sede").checked;
+  const mostrarCSU = document.getElementById("check_csu").checked;
+
+  marcadoresIES.forEach(m => {
+    const marcaMatch = (seleccionadas.length === 0) || seleccionadas.includes(m.ies);
+    let tipoMatch = false;
+    if (m.tipo_csu === "SEDE" && mostrarSedes) tipoMatch = true;
+    else if (m.tipo_csu !== "SEDE" && mostrarCSU) tipoMatch = true;
+
+    m.setMap(marcaMatch && tipoMatch ? map : null);
+  });
+}
+
+function limpiarFiltroIES() {
+  if (choicesIESInstance) choicesIESInstance.removeActiveItems();
+  document.getElementById("check_sede").checked = true;
+  document.getElementById("check_csu").checked = true;
+  aplicarFiltroIES();
+}
+</script>
+
+<script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDHICcCFQFY8ZZ4cJLAKT_XJGhPKKjy-SM&libraries=visualization,places&callback=initMap"></script>
+
+</body>
+</html>
