@@ -92,7 +92,6 @@
     .choices { margin-bottom: 8px; font-size: 13px; }
     .choices__inner { min-height: 35px; padding: 5px; background-color: #fff; border-radius: 4px; }
     
-    #filtro_tipo_entidad { max-height: 150px; overflow-y: auto; border: 1px solid #eee; padding: 5px; border-radius: 4px; }
     .checkbox-item { display: flex; align-items: center; margin-bottom: 4px; }
     .checkbox-item input { width: auto; margin: 0 8px 0 0; }
 
@@ -136,6 +135,22 @@
       font-size: 12px; color: #666; margin-top: 5px;
     }
     .iw-icon { margin-right: 4px; }
+
+    /* --- Estilos para Categorías (NUEVO) --- */
+    #filtro_tipo_entidad { max-height: 250px; overflow-y: auto; border: none; padding: 0; }
+    .categoria-group { margin-bottom: 5px; border: 1px solid #eee; border-radius: 4px; background: #fafafa; }
+    .categoria-header { 
+      display: flex; align-items: center; padding: 8px; cursor: pointer; 
+      font-size: 13px; font-weight: 600; color: #2c3e50; transition: background 0.2s;
+    }
+    .categoria-header:hover { background: #f1f3f5; }
+    .categoria-header input[type="checkbox"] { margin: 0 8px 0 0; cursor: pointer; }
+    .categoria-title { flex: 1; user-select: none; }
+    .categoria-toggle { font-size: 10px; color: #888; transition: transform 0.3s; }
+    
+    .tipo-list { margin-left: 0; padding: 5px 10px 10px 25px; display: none; background: #fff; border-top: 1px solid #eee; }
+    .tipo-list.open { display: block; }
+    .tipo-list .checkbox-item { font-size: 12px; color: #555; }
 
   </style>
 </head>
@@ -248,16 +263,15 @@ const logosIES = {
   "SENA": "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/Logos/SENA.png"
 };
 
-const iconosEntidad = {
-  "CENTRO COMERCIAL": "https://cdn-icons-png.flaticon.com/64/7806/7806057.png",
-  "COLEGIO": "https://img.icons8.com/color/48/school.png",
-  "CONJUNTO RESIDENCIAL": "https://img.icons8.com/color/48/home.png",
-  "EDIFICIO": "https://img.icons8.com/color/48/building.png",
-  "EMPRESA": "https://img.icons8.com/color/48/company.png",
-  "IETDH": "https://img.icons8.com/color/48/graduation-cap.png",
-  "OTRO": "https://img.icons8.com/ios-filled/40/000000/marker.png",
-  "PARQUE INDUSTRIAL": "https://img.icons8.com/office/40/factory.png",
-  "URBANIZACION": "https://img.icons8.com/color/48/city-block.png"
+const iconosCategoria = {
+  "Sector real": "https://img.icons8.com/color/48/company.png",
+  "Sector público": "https://img.icons8.com/color/48/city-buildings.png",
+  "Sector solidario": "https://img.icons8.com/color/48/handshake.png",
+  "Sector salud": "https://img.icons8.com/color/48/hospital-3.png",
+  "Colegios": "https://img.icons8.com/color/48/school.png",
+  "Propiedad horizontal": "https://img.icons8.com/color/48/home.png",
+  "Institutos técnicos": "https://img.icons8.com/color/48/graduation-cap.png",
+  "OTRO": "https://img.icons8.com/ios-filled/40/000000/marker.png"
 };
 
 const iconosIES = {
@@ -274,7 +288,7 @@ let capaMarcadoresEntidades = [], markerClusterEntidades = null;
 let marcadoresIES = [], choicesIESInstance = null;
 let entidadesCargadas = false;
 let iesCargadas = false;
-let searchBox = null; // Variable para el buscador
+let searchBox = null; 
 
 // --- INICIALIZACIÓN ---
 function initMap() {
@@ -290,50 +304,33 @@ function initMap() {
   markerClusterEntidades = new markerClusterer.MarkerClusterer({ map, markers: [] });
   map.addListener('idle', actualizarContadorEstudiantes);
 
-  // --- CONFIGURACIÓN DEL BUSCADOR (NUEVO) ---
   initSearchBox();
-
   cargarEstudiantes();
   setupLazyLoading();
 }
 
 function initSearchBox() {
   const input = document.getElementById("pac-input");
-  
-  // Posicionamos el buscador arriba a la izquierda (dentro del mapa)
   map.controls[google.maps.ControlPosition.TOP_LEFT].push(input);
-
   searchBox = new google.maps.places.SearchBox(input);
 
-  // Sesgar resultados a donde esté mirando el mapa actualmente
   map.addListener("bounds_changed", () => {
     searchBox.setBounds(map.getBounds());
   });
 
-  // Escuchar cuando el usuario selecciona un lugar
   searchBox.addListener("places_changed", () => {
     const places = searchBox.getPlaces();
-
     if (places.length == 0) return;
 
-    // Para ajustar el zoom al resultado
     const bounds = new google.maps.LatLngBounds();
-    
     places.forEach((place) => {
-      if (!place.geometry || !place.geometry.location) {
-        console.log("El lugar no tiene geometría");
-        return;
-      }
-
+      if (!place.geometry || !place.geometry.location) return;
       if (place.geometry.viewport) {
-        // Solo para lugares con área (como ciudades o barrios)
         bounds.union(place.geometry.viewport);
       } else {
-        // Para puntos exactos
         bounds.extend(place.geometry.location);
       }
     });
-
     map.fitBounds(bounds);
   });
 }
@@ -429,50 +426,151 @@ function cargarEntidades() {
   const loading = document.getElementById('loading-entidades');
   loading.style.display = 'block';
 
-  fetch("https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/datos_entidades.json")
-    .then(r => r.json())
-    .then(entidades => {
+  const urlsEntidades = [
+    "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/entidades_sector_real.json",
+    "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/entidades_sector_publico.json", 
+    "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/entidades_sector_solidario.json",
+    "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/entidades_sector_salud.json",
+    "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/entidades_colegios.json",
+    "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/entidades_propiedad_horizontal.json",
+    "https://raw.githubusercontent.com/JhassonCelis/mapa-estudiantes/main/entidades_institutos_tecnicos.json"
+  ];
+
+  Promise.all(urlsEntidades.map(url => fetch(url).then(r => r.json())))
+    .then(resultados => {
+      const entidades = resultados.flat();
+      
       let infoWindow = new google.maps.InfoWindow();
+      
       capaMarcadoresEntidades = entidades.map(e => {
-        const iconUrl = iconosEntidad[e.tipo] || iconosEntidad["OTRO"];
+        const catName = e.categoria || e.CATEGORIA || 'OTRO'; 
+        const tipoName = e.tipo || e.TIPO || 'Otro';
+        
+        const iconUrl = iconosCategoria[catName] || iconosCategoria["OTRO"];
+        
         const marker = new google.maps.Marker({
           position: { lat: parseFloat(e.lat), lng: parseFloat(e.lng) },
-          title: e.nombre || e.tipo,
+          // 1. CORRECCIÓN DEL ERROR: Forzamos a que sea un String siempre
+          title: String(e.nombre || tipoName), 
           icon: { url: iconUrl, scaledSize: new google.maps.Size(20, 20) }
         });
-        marker.tipo = e.tipo;
+        
+        marker.tipo = tipoName; 
+        marker.categoria = catName;     
+        
+        // 2. CORRECCIÓN DE LA TARJETA: Diseño moderno y teléfono
         marker.addListener('click', () => {
-          infoWindow.setContent(`<strong>${e.nombre || 'Entidad'}</strong><br><small>${e.tipo}</small><br>${e.direccion || ''}`);
+          const htmlContent = `
+            <div class="iw-container">
+              <div class="iw-header">
+                <p class="iw-marca">${marker.categoria}</p>
+              </div>
+              <p class="iw-nombre">${e.nombre || 'Entidad sin nombre'}</p>
+              <div class="iw-info">
+                <span class="iw-icon">📍</span> ${e.direccion || 'Dirección no registrada'}
+                <br>
+                <span class="iw-icon">🏢</span> Tipo: <strong>${marker.tipo}</strong>
+                <br>
+                <span class="iw-icon">📞</span> Tel: <strong>${e.telefono || 'No disponible'}</strong>
+              </div>
+            </div>
+          `;
+          infoWindow.setContent(htmlContent);
           infoWindow.open(map, marker);
         });
+        
         return marker;
       });
+      
       generarCheckboxesEntidades(entidades);
+      
       entidadesCargadas = true;
       loading.style.display = 'none';
     })
-    .catch(e => { loading.textContent = "Error al cargar."; });
+    .catch(e => { 
+      console.error("Error al cargar los 7 archivos de entidades:", e); 
+      loading.textContent = "Error al cargar entidades. Revisa la consola."; 
+    });
 }
 
 function generarCheckboxesEntidades(data) {
-  const tipos = [...new Set(data.map(e => e.tipo))].sort();
+  const agrupado = {};
+  data.forEach(e => {
+    const cat = e.categoria || e.CATEGORIA || 'Sin Categoría';
+    const tipo = e.tipo || e.TIPO || 'Otro';
+    if (!agrupado[cat]) agrupado[cat] = new Set();
+    agrupado[cat].add(tipo);
+  });
+
   const contenedor = document.getElementById("filtro_tipo_entidad");
   contenedor.innerHTML = "";
-  tipos.forEach(tipo => {
-    const div = document.createElement('div');
-    div.className = 'checkbox-item';
-    const input = document.createElement('input'); 
-    input.type = 'checkbox'; input.value = tipo;
-    input.addEventListener('change', actualizarClusterEntidades);
-    div.appendChild(input);
-    div.appendChild(document.createTextNode(tipo));
-    contenedor.appendChild(div);
+
+  Object.keys(agrupado).sort().forEach(cat => {
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'categoria-group';
+
+    const header = document.createElement('div');
+    header.className = 'categoria-header';
+    
+    const masterCheckbox = document.createElement('input');
+    masterCheckbox.type = 'checkbox';
+    masterCheckbox.className = 'master-checkbox';
+    
+    const title = document.createElement('span');
+    title.className = 'categoria-title';
+    title.textContent = cat;
+    
+    const toggleIcon = document.createElement('span');
+    toggleIcon.className = 'categoria-toggle';
+    toggleIcon.textContent = '▼';
+
+    header.appendChild(masterCheckbox);
+    header.appendChild(title);
+    header.appendChild(toggleIcon);
+
+    const listaDiv = document.createElement('div');
+    listaDiv.className = 'tipo-list';
+
+    const tipos = Array.from(agrupado[cat]).sort();
+    tipos.forEach(tipo => {
+      const itemDiv = document.createElement('div');
+      itemDiv.className = 'checkbox-item';
+      
+      const input = document.createElement('input'); 
+      input.type = 'checkbox'; 
+      input.value = tipo;
+      input.className = 'tipo-checkbox';
+      
+      input.addEventListener('change', actualizarClusterEntidades);
+
+      itemDiv.appendChild(input);
+      itemDiv.appendChild(document.createTextNode(tipo));
+      listaDiv.appendChild(itemDiv);
+    });
+
+    title.addEventListener('click', () => {
+      listaDiv.classList.toggle('open');
+      toggleIcon.textContent = listaDiv.classList.contains('open') ? '▲' : '▼';
+    });
+
+    masterCheckbox.addEventListener('change', (e) => {
+      const isChecked = e.target.checked;
+      listaDiv.querySelectorAll('.tipo-checkbox').forEach(chk => {
+        chk.checked = isChecked;
+      });
+      actualizarClusterEntidades();
+    });
+
+    groupDiv.appendChild(header);
+    groupDiv.appendChild(listaDiv);
+    contenedor.appendChild(groupDiv);
   });
 }
 
 function actualizarClusterEntidades() {
-  const checkedTipos = Array.from(document.querySelectorAll('#filtro_tipo_entidad input:checked')).map(e => e.value);
+  const checkedTipos = Array.from(document.querySelectorAll('.tipo-checkbox:checked')).map(e => e.value);
   markerClusterEntidades.clearMarkers();
+  
   if (checkedTipos.length > 0) {
     const visibles = capaMarcadoresEntidades.filter(m => checkedTipos.includes(m.tipo));
     markerClusterEntidades.addMarkers(visibles);
@@ -480,7 +578,7 @@ function actualizarClusterEntidades() {
 }
 
 function limpiarFiltroEntidades() {
-  document.querySelectorAll('#filtro_tipo_entidad input').forEach(i => i.checked = false);
+  document.querySelectorAll('#filtro_tipo_entidad input[type="checkbox"]').forEach(i => i.checked = false);
   markerClusterEntidades.clearMarkers();
 }
 
